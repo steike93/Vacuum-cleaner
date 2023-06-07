@@ -62,19 +62,19 @@ void wheels(void)
 {
 	//DDRD |= (0 << PIND3);  
 	
-	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);				// Set OC2B on compare match. Set OC2B at BOTTOM. Fast-PWM mode. Inverting mode.
-	TCCR2B |= (1 << CS20) | (1 << CS22);												// No prescaler.
+	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);								// Set OC2B on compare match. Set OC2B at BOTTOM. Fast-PWM mode. Inverting mode.
+	TCCR2B |= (1 << CS20) | (1 << CS22);																// No prescaler.
 	
 																			
 	
 	if(distance < 10)
 	{
-		OCR2B = 70;																	  // 70 er nullpunktet. Da går ikke servoen!
+		OCR2B = 70;																	  
 	}
 	
 	if(distance > 10)
 	{
-		OCR2B = 30;																  // går mot klokken
+		OCR2B = 30;																  
 	}
 	
 	
@@ -89,32 +89,32 @@ void wheels(void)
 int SonarSensor_init(void)
 {
 	int counter = 0;
-	DDRB = 0x00;														// Echo port as input. Echo pin will be PB0 (ICP1)
+	DDRB = 0x00;																						// Echo port as input. Echo pin will be PB0 (ICP1)
 	
-	DDRD = 0x0FF;														// Trigger port as output
-	PORTD = 0xFF;														// Set port D as output
+	DDRD = 0x0FF;																						// Trigger port as output
+	PORTD = 0xFF;																						// Set port D as output
 	
-	TCCR1A = (0 << WGM12) | (0 << WGM11) | (0 << WGM10);				// Normal mode
-	TCCR1B = (1 << CS10);												// No prescaler
-	TCCR1B = (1 << ICES1);												// Rising edge triggers the capture
+	TCCR1A = (0 << WGM12) | (0 << WGM11) | (0 << WGM10);												// Normal mode
+	TCCR1B = (1 << CS10);																				// No prescaler
+	TCCR1B = (1 << ICES1);																				// Rising edge triggers the capture
 	
-	TIMSK1 = (1 << TOIE1);												// Enable Timer1 overflow interrupts
+	TIMSK1 = (1 << TOIE1);																				// Enable Timer1 overflow interrupts
 	
-	TCNT1 = 0;															// Clear Timer counter
+	TCNT1 = 0;																							// Clear Timer counter
 	
-	sei();																// Enable global interrupt
+	sei();																								// Enable global interrupt
 	
 	while(1)
 	{
 		PORTD |= (1 << PIND0);
-		_delay_us(10);													// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		_delay_us(10);																					// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTD = ~(1 << PIND0);
 		
-		TIFR1 = (1 << ICF1);											// ICF1 is set when the counter reaches TOP value
-		TIFR1 = (1 << TOV1);											// TOV1 is set when the timer overflows.
+		TIFR1 = (1 << ICF1);																			// ICF1 is set when the counter reaches TOP value
+		TIFR1 = (1 << TOV1);																			// TOV1 is set when the timer overflows.
 		
 		
-		while((TIFR1 & (1 << ICF1)) == 0)								// Waiting for rising edge. Echo pin should be low when the sound has traveled back. The duration of the pulse determines the distance.
+		while((TIFR1 & (1 << ICF1)) == 0)																// Waiting for rising edge. Echo pin should be low when the sound has traveled back. The duration of the pulse determines the distance.
 		{
 		}
 		
@@ -124,10 +124,10 @@ int SonarSensor_init(void)
 		TIFR1 = 1<<TOV1;	/* Clear Timer Overflow flag */
 		countTimer = 0;/* Clear Timer overflow count */
 		
-		while((TIFR1 & (1 << ICF1)) == 0)								// Waiting for falling edge
+		while((TIFR1 & (1 << ICF1)) == 0)																// Waiting for falling edge
 		{
 		}
-		counter = ICR1 + (65535 * countTimer);						// ICR1 measures the time from rising edge to falling edge for the echo pulse. In case of ICR1 overflow, it starts counting in countTimer.
+		counter = ICR1 + (65535 * countTimer);															// ICR1 measures the time from rising edge to falling edge for the echo pulse. In case of ICR1 overflow, it starts counting in countTimer.
 		return counter/580;
 	}
 }
@@ -136,19 +136,19 @@ int SonarSensor_init(void)
 
 void USART_init(long UBRR)
 {
-	UBRR0H = (UBRR >> 8);			// Shift the register 8 bits to the right. UBBR value is only 103.
+	UBRR0H = (UBRR >> 8);																				// Shift the register 8 bits to the right. UBBR value is only 103.
 	UBRR0L = (UBRR); 
 	
-	UCSR0C = ((1 << UMSEL01) | (1 << UPM00) | (1 << UPM01) | (1 << USBS0) | (3<<UCSZ00));			// Syncrhonous USART | Odd parity | 1 stop bit | 8 bit. 
+	UCSR0C = ((1 << UMSEL01) | (1 << UPM00) | (1 << UPM01) | (1 << USBS0) | (3<<UCSZ00));				// Syncrhonous USART | Odd parity | 1 stop bit | 8 bit. 
 	
-	UCSR0B = ((1 << RXEN0) | (1 << TXEN0));	 // Enables receiver and transmitter
+	UCSR0B = ((1 << RXEN0) | (1 << TXEN0));																// Enables receiver and transmitter
 	
 }
 
 
 void USART_TransmitPolling(char *String)
 {
-	while (( UCSR0A & (1<<UDRE0)) == 0) {}; // Do nothing until UDR is ready
+	while (( UCSR0A & (1<<UDRE0)) == 0) {};																// Do nothing until UDR is ready
 	UDR0 = String;
 }
 
