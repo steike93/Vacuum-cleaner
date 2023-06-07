@@ -19,6 +19,7 @@
 
 int countTimer = 0;
 
+int distance = 0;
 
 
 ISR(TIMER1_OVF_vect)
@@ -31,26 +32,55 @@ int SonarSensor_init(void);
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
+void wheels(void);
+
+
 
 
 int main(void)
 {
 	
-	int distance = 0;
 	char String[10]; 
 	USART_init(UBRR_value);
 	
-	char test2[] = "\n";
+	char test2[] = " \n";
 	
 	
 	while(1)
 	{
 		distance = SonarSensor_init();
+		wheels();
+		
 		itoa(distance, String, 10);
 		USART_putstring(String);
 		USART_putstring(test2);
 
 	}
+}
+
+void wheels(void)
+{
+	//DDRD |= (0 << PIND3);  
+	
+	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);				// Set OC2B on compare match. Set OC2B at BOTTOM. Fast-PWM mode. Inverting mode.
+	TCCR2B |= (1 << CS20) | (1 << CS22);												// No prescaler.
+	
+																			
+	
+	if(distance < 10)
+	{
+		OCR2B = 70;																	  // 70 er nullpunktet. Da går ikke servoen!
+	}
+	
+	if(distance > 10)
+	{
+		OCR2B = 30;																  // går mot klokken
+	}
+	
+	
+	// 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder.
+	
+	
 }
 
 
@@ -97,10 +127,9 @@ int SonarSensor_init(void)
 		while((TIFR1 & (1 << ICF1)) == 0)								// Waiting for falling edge
 		{
 		}
-		counter = ICR1 + (65535 * countTimer);						// ICR1 measures the time from rising edge to falling edge for the echo pulse. 2^16 = 65535.
-		return counter;
+		counter = ICR1 + (65535 * countTimer);						// ICR1 measures the time from rising edge to falling edge for the echo pulse. In case of ICR1 overflow, it starts counting in countTimer.
+		return counter/580;
 	}
-	
 }
 
 
@@ -127,6 +156,6 @@ void USART_TransmitPolling(char *String)
 void USART_putstring(char *StringPtr){
 	while(*StringPtr != 0x00){
 		USART_TransmitPolling(*StringPtr);
-	StringPtr++;}
+		StringPtr++;}
 	
 }
