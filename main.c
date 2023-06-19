@@ -32,7 +32,8 @@ int SonarSensor_init(void);
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
-void wheels(void);
+void wheels_right(void);
+void wheels_left(void);
 
 
 
@@ -49,7 +50,9 @@ int main(void)
 	while(1)
 	{
 		distance = SonarSensor_init();
-		wheels();
+		//wheels_right();
+		wheels_left();
+		_delay_ms(100);
 		
 		itoa(distance, String, 10);
 		USART_putstring(String);
@@ -58,11 +61,11 @@ int main(void)
 	}
 }
 
-void wheels(void)
+void wheels_right(void)
 {
 	//DDRD |= (0 << PIND3);  
 	
-	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);			// Set OC2B on compare match. Set OC2B at BOTTOM. Fast-PWM mode. Inverting mode.
+	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
 	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
 	
 																			
@@ -83,6 +86,32 @@ void wheels(void)
 	
 }
 
+
+void wheels_left(void)
+{
+	
+	DDRB |= (1 << PINB3);
+	
+	TCCR2A |= (1 << COM2A1) | (1 << COM2A0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
+	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
+	
+	
+	
+	if(distance < 10)
+	{
+		OCR2A = 70;
+	}
+	
+	if(distance > 10)
+	{
+		OCR2A = 30;
+	}
+	
+	
+	/* 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder. */
+	
+	
+}
 
 
 
