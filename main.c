@@ -17,9 +17,17 @@
 #include <stdlib.h>
 
 
+
+uint16_t distance;
+uint16_t distance2;
+
+//volatile unsigned long distance2;
+
+
+char String[10]; 
+
 int countTimer = 0;
 
-int distance = 0;
 
 
 ISR(TIMER1_OVF_vect)
@@ -34,6 +42,7 @@ void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
 void wheels_right(void);
 void wheels_left(void);
+void SonarSensor_init2(void);
 
 
 
@@ -41,22 +50,26 @@ void wheels_left(void);
 int main(void)
 {
 	
-	char String[10]; 
-	USART_init(UBRR_value);
+	DDRB = 0xFF;					// Output
+	PORTB = 0xFF;
 	
-	char test2[] = " \n";
-	
+	SonarSensor_init2();
+
 	
 	while(1)
 	{
-		distance = SonarSensor_init();
+		//distance = SonarSensor_init();
 		//wheels_right();
-		wheels_left();
-		_delay_ms(100);
+		//wheels_left();
 		
-		itoa(distance, String, 10);
-		USART_putstring(String);
-		USART_putstring(test2);
+		_delay_ms(1000);
+		
+		PORTC |= (1 << PINC4);
+		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		PORTC &= ~(1<<PINC4);
+		
+		
+		
 
 	}
 }
@@ -115,51 +128,35 @@ void wheels_left(void)
 
 
 
-int SonarSensor_init(void)
-{
-	int counter = 0;
-	DDRB = 0x00;																		// Echo port as input. Echo pin will be PB0 (ICP1)
+
+
+
+
+
+void SonarSensor_init2(void)
+{	
 	
-	DDRD = 0x0FF;																		// Trigger port as output
-	PORTD = 0xFF;																		// Set port D as output
 	
-	TCCR1A = (0 << WGM12) | (0 << WGM11) | (0 << WGM10);								// Normal mode
-	TCCR1B = (1 << CS10);																// No prescaler
-	TCCR1B = (1 << ICES1);																// Rising edge triggers the capture
+	DDRC = 0xFF;							// Port C all output.
+	DDRC &= ~(1<<DDC5);
 	
-	TIMSK1 = (1 << TOIE1);																// Enable Timer1 overflow interrupts
+	PORTC |= (1<<PORTC5);					// Enable pull up on C5 (echo)
+	PORTC &= ~(1<<PINC4);					// Init C4 as low (trigger)
 	
-	TCNT1 = 0;																			// Clear Timer counter
+	PRR &= ~(1<<PRTIM1);					// To activate timer1 module
+	TCNT1 = 0;								// Initial timer value
+	TCCR1B |= (1<<CS12);					// Timer without prescaller. Since default clock for atmega328p is 1Mhz period is 1uS
+	TCCR1B |= (1<<ICES1);					// First capture on rising edge
+
+	PCICR = (1<<PCIE1);						// Enable PCINT[14:8] we use pin C5 which is PCINT13
+	PCMSK1 = (1<<PCINT13);					// Enable C5 interrupt
 	
-	sei();																				// Enable global interrupt
 	
-	while(1)
-	{
-		PORTD |= (1 << PIND0);
-		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
-		PORTD = ~(1 << PIND0);
-		
-		TIFR1 = (1 << ICF1);															// ICF1 is set when the counter reaches TOP value
-		TIFR1 = (1 << TOV1);															// TOV1 is set when the timer overflows.
-		
-		
-		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for rising edge. Echo pin should be low when the sound has traveled back. 
-		{																				// The duration of the pulse determines the distance.
-		}
-		
-		TCNT1 = 0;	/* Clear Timer counter */
-		TCCR1B = 0x01;	/* Capture on falling edge, No prescaler */
-		TIFR1 = 1<<ICF1;	/* Clear ICP flag (Input Capture flag) */
-		TIFR1 = 1<<TOV1;	/* Clear Timer Overflow flag */
-		countTimer = 0;/* Clear Timer overflow count */
-		
-		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for falling edge
-		{
-		}
-		counter = ICR1 + (65535 * countTimer);											// ICR1 measures the time from rising edge to falling edge for the echo pulse.
-		return counter/580;																// In case of ICR1 overflow, it starts counting in countTimer.
-	}
+	sei();									// Enable interrrupt
+
+
 }
+
 
 
 
@@ -189,3 +186,81 @@ void USART_putstring(char *StringPtr){
 		StringPtr++;}
 	
 }
+
+
+ISR(PCINT1_vect) {
+	
+	if ( (PINC & (1 << PINC5)) == (1 << PINC5))								// Checks if echo is high
+	{
+		TCNT1 = 0;		
+		PORTB |= (1 << PINB5);
+	}
+	
+	else
+	{
+		//uint8_t oldSREG = SREG;
+		distance = TCNT1/10;					// Save Timer value
+		cli();								    // Disable global interrupt;
+		itoa(distance, String, 10);
+		char test2[] = " \n";
+		USART_init(UBRR_value);
+		USART_putstring(String);
+		USART_putstring(test2);
+		//SREG = oldSREG;	
+		PORTB &= ~(1 << PINB5);
+		
+
+	}
+}
+
+
+
+/*
+
+int SonarSensor_init(void)
+{
+	int counter = 0;
+	DDRB = 0x00;																		// Echo port as input. Echo pin will be PB0 (ICP1)
+	
+	DDRD = 0x0FF;																		// Trigger port as output
+	PORTD = 0xFF;																		// Set port D as output
+	
+	TCCR1A = (0 << WGM12) | (0 << WGM11) | (0 << WGM10);								// Normal mode
+	TCCR1B = (1 << CS10);																// No prescaler
+	TCCR1B = (1 << ICES1);																// Rising edge triggers the capture
+	
+	TIMSK1 = (1 << TOIE1);																// Enable Timer1 overflow interrupts
+	
+	TCNT1 = 0;																			// Clear Timer counter
+	
+	sei();																				// Enable global interrupt
+	
+	while(1)
+	{
+		PORTD |= (1 << PIND0);
+		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		PORTD = ~(1 << PIND0);
+		
+		TIFR1 = (1 << ICF1);															// ICF1 is set when the counter reaches TOP value
+		TIFR1 = (1 << TOV1);															// TOV1 is set when the timer overflows.
+		
+		
+		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for rising edge. Echo pin should be low when the sound has traveled back.
+		{																				// The duration of the pulse determines the distance.
+		}
+		
+		TCNT1 = 0;																		/ Clear Timer counter /
+		TCCR1B = (1 << CS10);															/ Capture on falling edge, No prescaler /
+		TIFR1 = 1<<ICF1;																/ Clear ICP flag (Input Capture flag) /
+		TIFR1 = 1<<TOV1;																/ Clear Timer Overflow flag /
+		countTimer = 0; 																/ Clear Timer overflow count /
+		
+		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for falling edge
+		{
+		}
+		counter = ICR1 + (65535 * countTimer);											// ICR1 measures the time from rising edge to falling edge for the echo pulse.
+		return counter/580;																// In case of ICR1 overflow, it starts counting in countTimer.
+	}
+}
+
+*/
