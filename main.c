@@ -16,27 +16,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
-
-uint16_t distance;
+uint16_t distance1;
 uint16_t distance2;
 
 //volatile unsigned long distance2;
 
 
-char String[10]; 
-
-int countTimer = 0;
 
 
 
-ISR(TIMER1_OVF_vect)
-{
-	countTimer++;
-}
-
-
-int SonarSensor_init(void);
+void SonarSensor_init1(void);
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
@@ -46,30 +35,33 @@ void SonarSensor_init2(void);
 
 
 
-
 int main(void)
 {
 	
-	DDRB = 0xFF;					// Output
-	PORTB = 0xFF;
-	
-	SonarSensor_init2();
+
+	//SonarSensor_init2();
+	SonarSensor_init1();
 
 	
 	while(1)
 	{
-		//distance = SonarSensor_init();
+
+		
+		
 		//wheels_right();
 		//wheels_left();
 		
-		_delay_ms(1000);
 		
-		PORTC |= (1 << PINC4);
+		//PORTC |= (1 << PINC4);
+		//_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		//PORTC &= ~(1<<PINC4);
+		
+		
+		PORTB |= (1 << PINB0);
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
-		PORTC &= ~(1<<PINC4);
+		PORTB &= ~(1<<PINB0);
 		
-		
-		
+		_delay_ms(1000);
 
 	}
 }
@@ -83,12 +75,12 @@ void wheels_right(void)
 	
 																			
 	
-	if(distance < 10)
+	if(distance1 < 10)
 	{
 		OCR2B = 70;																	  
 	}
 	
-	if(distance > 10)
+	if(distance1 > 10)
 	{
 		OCR2B = 30;																  
 	}
@@ -110,12 +102,12 @@ void wheels_left(void)
 	
 	
 	
-	if(distance < 10)
+	if(distance2 < 10)
 	{
 		OCR2A = 70;
 	}
 	
-	if(distance > 10)
+	if(distance2 > 10)
 	{
 		OCR2A = 30;
 	}
@@ -125,8 +117,6 @@ void wheels_left(void)
 	
 	
 }
-
-
 
 
 
@@ -145,11 +135,36 @@ void SonarSensor_init2(void)
 	
 	PRR &= ~(1<<PRTIM1);					// To activate timer1 module
 	TCNT1 = 0;								// Initial timer value
-	TCCR1B |= (1<<CS12);					// Timer without prescaller. Since default clock for atmega328p is 1Mhz period is 1uS
+	TCCR1B |= (1<<CS12);					// Timer without prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
 	TCCR1B |= (1<<ICES1);					// First capture on rising edge
 
 	PCICR = (1<<PCIE1);						// Enable PCINT[14:8] we use pin C5 which is PCINT13
 	PCMSK1 = (1<<PCINT13);					// Enable C5 interrupt
+	
+	
+	sei();									// Enable interrrupt
+
+
+}
+
+
+void SonarSensor_init1(void)
+{
+	
+	
+	DDRB = 0xFF;							// Port B all output.
+	DDRB &= ~(1<<DDB1);
+	
+	PORTB |= (1<<PORTB1);					// Enable pull up on B1 (echo)
+	PORTB &= ~(1<<PINB0);					// Init B0 as low (trigger)
+	
+	PRR &= ~(1<<PRTIM0);					// To activate timer0 module
+	TCNT0 = 0;								// Initial timer value
+	TCCR0B |= (1<<CS00);					// Timer without prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
+	
+	
+	PCICR = (1<<PCIE0);						// Enable PCINT[0:7] we use pin B1 which is PCINT1
+	PCMSK0 = (1<<PCINT1);					// Enable B1 interrupt
 	
 	
 	sei();									// Enable interrrupt
@@ -188,6 +203,7 @@ void USART_putstring(char *StringPtr){
 }
 
 
+
 ISR(PCINT1_vect) {
 	
 	if ( (PINC & (1 << PINC5)) == (1 << PINC5))								// Checks if echo is high
@@ -199,68 +215,48 @@ ISR(PCINT1_vect) {
 	else
 	{
 		//uint8_t oldSREG = SREG;
-		distance = TCNT1/10;					// Save Timer value
+		distance2 = TCNT1/3;					// Save Timer value
 		cli();								    // Disable global interrupt;
-		itoa(distance, String, 10);
+		char String2[10];
+		itoa(distance2, String2, 10);
 		char test2[] = " \n";
 		USART_init(UBRR_value);
-		USART_putstring(String);
+		USART_putstring(String2);
 		USART_putstring(test2);
 		//SREG = oldSREG;	
 		PORTB &= ~(1 << PINB5);
+		_delay_ms(100);
 		
 
 	}
 }
 
 
-
-/*
-
-int SonarSensor_init(void)
-{
-	int counter = 0;
-	DDRB = 0x00;																		// Echo port as input. Echo pin will be PB0 (ICP1)
+ISR(PCINT0_vect) {
 	
-	DDRD = 0x0FF;																		// Trigger port as output
-	PORTD = 0xFF;																		// Set port D as output
-	
-	TCCR1A = (0 << WGM12) | (0 << WGM11) | (0 << WGM10);								// Normal mode
-	TCCR1B = (1 << CS10);																// No prescaler
-	TCCR1B = (1 << ICES1);																// Rising edge triggers the capture
-	
-	TIMSK1 = (1 << TOIE1);																// Enable Timer1 overflow interrupts
-	
-	TCNT1 = 0;																			// Clear Timer counter
-	
-	sei();																				// Enable global interrupt
-	
-	while(1)
+	if ( (PINB & (1 << PINB1)) == (1 << PINB1))								// Checks if echo is high
 	{
-		PORTD |= (1 << PIND0);
-		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
-		PORTD = ~(1 << PIND0);
+		TCNT0 = 0;
+		PORTB |= (1 << PINB5);												// Toggles LED
+	}
+	
+	else
+	{
+		//uint8_t oldSREG = SREG;
+		distance1 = TCNT0;					// Save Timer value
+		cli();								    // Disable global interrupt;
+		char String2[10];
+		itoa(distance1, String2, 10);
+		char test2[] = " \n";
+		USART_init(UBRR_value);
+		USART_putstring(String2);
+		USART_putstring(test2);
+		//SREG = oldSREG;
+		PORTB &= ~(1 << PINB5);
+		_delay_ms(100);
 		
-		TIFR1 = (1 << ICF1);															// ICF1 is set when the counter reaches TOP value
-		TIFR1 = (1 << TOV1);															// TOV1 is set when the timer overflows.
-		
-		
-		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for rising edge. Echo pin should be low when the sound has traveled back.
-		{																				// The duration of the pulse determines the distance.
-		}
-		
-		TCNT1 = 0;																		/ Clear Timer counter /
-		TCCR1B = (1 << CS10);															/ Capture on falling edge, No prescaler /
-		TIFR1 = 1<<ICF1;																/ Clear ICP flag (Input Capture flag) /
-		TIFR1 = 1<<TOV1;																/ Clear Timer Overflow flag /
-		countTimer = 0; 																/ Clear Timer overflow count /
-		
-		while((TIFR1 & (1 << ICF1)) == 0)												// Waiting for falling edge
-		{
-		}
-		counter = ICR1 + (65535 * countTimer);											// ICR1 measures the time from rising edge to falling edge for the echo pulse.
-		return counter/580;																// In case of ICR1 overflow, it starts counting in countTimer.
+
 	}
 }
 
-*/
+
