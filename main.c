@@ -18,51 +18,62 @@
 
 uint16_t distance1;
 uint16_t distance2;
-
-//volatile unsigned long distance2;
-
+uint16_t distance3;
 
 
-
-
-void SonarSensor_init1(void);
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
 void wheels_right(void);
 void wheels_left(void);
+void SonarSensor_init0(void);
+void SonarSensor_init1(void);
 void SonarSensor_init2(void);
-
 
 
 int main(void)
 {
+	//SonarSensor_init0();
+	//SonarSensor_init1();
+	SonarSensor_init2();
 	
-
-	//SonarSensor_init2();
-	SonarSensor_init1();
-
+	USART_init(UBRR_value);
+	sei();
 	
 	while(1)
 	{
-
-		
-		
-		//wheels_right();
+     	//wheels_right();
 		//wheels_left();
 		
+		char newline[10] = " \n";
+		char String[10];
 		
-		//PORTC |= (1 << PINC4);
-		//_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
-		//PORTC &= ~(1<<PINC4);
+		PORTD |= (1 << PIND4);
+		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		PORTD &= ~(1<<PIND4);															// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		
+
+		
+		itoa(distance3, String, 10);
+		
+		USART_putstring(String);
+		USART_putstring(newline);
+		
+		/*
 		
 		PORTB |= (1 << PINB0);
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTB &= ~(1<<PINB0);
 		
+		_delay_ms(10);
+		
+		PORTC |= (1 << PINC4);
+		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
+		PORTC &= ~(1<<PINC4);
+		
+		*/
 		_delay_ms(1000);
-
+		
 	}
 }
 
@@ -72,9 +83,7 @@ void wheels_right(void)
 	
 	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
 	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
-	
-																			
-	
+																		
 	if(distance1 < 10)
 	{
 		OCR2B = 70;																	  
@@ -100,8 +109,6 @@ void wheels_left(void)
 	TCCR2A |= (1 << COM2A1) | (1 << COM2A0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
 	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
 	
-	
-	
 	if(distance2 < 10)
 	{
 		OCR2A = 70;
@@ -119,14 +126,24 @@ void wheels_left(void)
 }
 
 
-
-
-
-
 void SonarSensor_init2(void)
+{
+	DDRD = 0xFF;							// Port D all output.
+	DDRD &= ~(1<<DDD5);
+	
+	PORTD |= (1<<PORTD5);					// Enable pull up on D5 (echo)
+	PORTD &= ~(1<<PIND4);					// Init D4 as low (trigger)
+	
+	PRR &= ~(1<<PRTIM2);					// To activate timer0 module
+	TCNT2 = 0;								// Initial timer value
+	TCCR2B |= (1<<CS22) | (1 << CS21);		// Timer with prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
+	PCICR  |= (1<<PCIE2);					// Enable PCINT[20:24] we use pin D4 which is PCINT20
+	PCMSK2 |= (1<<PCINT21);					// Enable D5 interrupt
+}
+
+
+void SonarSensor_init1(void)
 {	
-	
-	
 	DDRC = 0xFF;							// Port C all output.
 	DDRC &= ~(1<<DDC5);
 	
@@ -137,21 +154,13 @@ void SonarSensor_init2(void)
 	TCNT1 = 0;								// Initial timer value
 	TCCR1B |= (1<<CS12);					// Timer without prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
 	TCCR1B |= (1<<ICES1);					// First capture on rising edge
-
-	PCICR = (1<<PCIE1);						// Enable PCINT[14:8] we use pin C5 which is PCINT13
-	PCMSK1 = (1<<PCINT13);					// Enable C5 interrupt
-	
-	
-	sei();									// Enable interrrupt
-
-
+	PCICR  |= (1<<PCIE1);						// Enable PCINT[14:8] we use pin C5 which is PCINT13
+	PCMSK1 |= (1<<PCINT13);					// Enable C5 interrupt
 }
 
 
-void SonarSensor_init1(void)
+void SonarSensor_init0(void)
 {
-	
-	
 	DDRB = 0xFF;							// Port B all output.
 	DDRB &= ~(1<<DDB1);
 	
@@ -160,16 +169,9 @@ void SonarSensor_init1(void)
 	
 	PRR &= ~(1<<PRTIM0);					// To activate timer0 module
 	TCNT0 = 0;								// Initial timer value
-	TCCR0B |= (1<<CS00);					// Timer without prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
-	
-	
-	PCICR = (1<<PCIE0);						// Enable PCINT[0:7] we use pin B1 which is PCINT1
-	PCMSK0 = (1<<PCINT1);					// Enable B1 interrupt
-	
-	
-	sei();									// Enable interrrupt
-
-
+	TCCR0B |= (1<<CS02) | (1 << CS00);		// Timer with prescaler. Since default clock for atmega328p is 1Mhz period is 1uS
+	PCICR |= (1<<PCIE0);					// Enable PCINT[0:7] we use pin B1 which is PCINT1
+	PCMSK0 |= (1<<PCINT1);					 // Enable B1 interrupt
 }
 
 
@@ -184,7 +186,6 @@ void USART_init(long UBRR)
 	(1 << USBS0) | (3<<UCSZ00));														// Syncrhonous USART | Odd parity | 1 stop bit | 8 bit. 
 	
 	UCSR0B = ((1 << RXEN0) | (1 << TXEN0));												// Enables receiver and transmitter
-	
 }
 
 
@@ -199,7 +200,25 @@ void USART_putstring(char *StringPtr){
 	while(*StringPtr != 0x00){
 		USART_TransmitPolling(*StringPtr);
 		StringPtr++;}
+}
+
+
+
+
+ISR(PCINT2_vect) {
 	
+	if ( (PIND & (1 << PIND5)) == (1 << PIND5))								// Checks if echo is high
+	{
+		TCNT2 = 0;
+		PORTB |= (1 << PINB5);												// Toggles debug led
+	}
+	
+	else
+	{
+		distance3 = TCNT2/3;					    // Save Timer value
+		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
+		//cli();
+	}
 }
 
 
@@ -209,25 +228,14 @@ ISR(PCINT1_vect) {
 	if ( (PINC & (1 << PINC5)) == (1 << PINC5))								// Checks if echo is high
 	{
 		TCNT1 = 0;		
-		PORTB |= (1 << PINB5);
+		PORTB |= (1 << PINB5);											   // Toggles Debug Led
 	}
 	
 	else
 	{
-		//uint8_t oldSREG = SREG;
 		distance2 = TCNT1/3;					// Save Timer value
-		cli();								    // Disable global interrupt;
-		char String2[10];
-		itoa(distance2, String2, 10);
-		char test2[] = " \n";
-		USART_init(UBRR_value);
-		USART_putstring(String2);
-		USART_putstring(test2);
-		//SREG = oldSREG;	
-		PORTB &= ~(1 << PINB5);
-		_delay_ms(100);
-		
-
+		PORTB &= ~(1 << PINB5);					// Toggles Debug led
+		//cli();
 	}
 }
 
@@ -237,26 +245,13 @@ ISR(PCINT0_vect) {
 	if ( (PINB & (1 << PINB1)) == (1 << PINB1))								// Checks if echo is high
 	{
 		TCNT0 = 0;
-		PORTB |= (1 << PINB5);												// Toggles LED
+		PORTB |= (1 << PINB5);												// Toggles debug led
 	}
 	
 	else
 	{
-		//uint8_t oldSREG = SREG;
-		distance1 = TCNT0;					// Save Timer value
-		cli();								    // Disable global interrupt;
-		char String2[10];
-		itoa(distance1, String2, 10);
-		char test2[] = " \n";
-		USART_init(UBRR_value);
-		USART_putstring(String2);
-		USART_putstring(test2);
-		//SREG = oldSREG;
-		PORTB &= ~(1 << PINB5);
-		_delay_ms(100);
-		
-
+		distance1 = TCNT0;					    // Save Timer value
+		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
+		//cli();
 	}
 }
-
-
