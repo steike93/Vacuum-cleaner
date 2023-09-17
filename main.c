@@ -16,34 +16,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-uint16_t distance1;
-uint16_t distance2;
-uint16_t distance3;
+uint16_t distance0_left;
+uint16_t distance1_front;
+uint16_t distance2_right;
 
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
-void wheels_right(void);
-void wheels_left(void);
-void SonarSensor_init0(void);
-void SonarSensor_init1(void);
-void SonarSensor_init2(void);
+void wheels(void);
+void SonarSensor_init0_left(void);
+void SonarSensor_init1_front(void);
+void SonarSensor_init2_right(void);
 
 
 int main(void)
 {
-	//SonarSensor_init0();
-	//SonarSensor_init1();
-	SonarSensor_init2();
+	SonarSensor_init0_left();
+	SonarSensor_init1_front();
+	SonarSensor_init2_right();
 	
 	USART_init(UBRR_value);
 	sei();
 	
 	while(1)
 	{
-     	//wheels_right();
-		//wheels_left();
+     	
+		wheels();
 		
 		char newline[10] = " \n";
 		char String[10];
@@ -54,12 +53,12 @@ int main(void)
 		
 
 		
-		itoa(distance3, String, 10);
+		itoa(distance2_right, String, 10);
 		
 		USART_putstring(String);
 		USART_putstring(newline);
 		
-		/*
+	
 		
 		PORTB |= (1 << PINB0);
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
@@ -71,53 +70,60 @@ int main(void)
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTC &= ~(1<<PINC4);
 		
-		*/
+		
 		_delay_ms(1000);
 		
 	}
 }
 
-void wheels_right(void)
+void wheels(void)
 {
-	//DDRD |= (0 << PIND3);  
+	DDRD |= (0 << PIND3);  
+	
+	//DDRB |= (1 << PINB3);
 	
 	TCCR2A |= (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
-	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
+	TCCR2B |= (1 << CS20) | (1 << CS22);			
+	
+	//TCCR2A |= (1 << COM2A1) | (1 << COM2A0);			// Compare output mode. Fast-PWM mode. Inverting mode.
+
+	
+	//OCR2B = 120;																// Høyre hjul
+	//OCR2A = 120;
 																		
-	if(distance1 < 10)
-	{
-		OCR2B = 70;																	  
-	}
 	
-	if(distance1 > 10)
+	if((distance1_front > 10) & (distance2_right > 10) & (distance0_left > 10))
 	{
-		OCR2B = 30;																  
+		OCR2B = 120;																// Høyre hjul
+		OCR2A = 120;																  
 	}
 	
 	
-	/* 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder. */
-	
-	
-}
-
-
-void wheels_left(void)
-{
-	
-	DDRB |= (1 << PINB3);
-	
-	TCCR2A |= (1 << COM2A1) | (1 << COM2A0) | (1 << WGM21) | (1 << WGM20);			// Compare output mode. Fast-PWM mode. Inverting mode.
-	TCCR2B |= (1 << CS20) | (1 << CS22);											// No prescaler.
-	
-	if(distance2 < 10)
+	else if((distance1_front < 10) & (distance2_right > distance0_left))
 	{
+		OCR2B = 30;		
+		OCR2A = 70;															  
+	}
+	
+	else if((distance1_front < 10) & (distance2_right < distance0_left))
+	{
+		OCR2B = 70;
 		OCR2A = 70;
 	}
 	
-	if(distance2 > 10)
+	else if((distance1_front > 10) & (distance2_right < 10) & (distance0_left > 10))
 	{
+		OCR2B = 30;
+		OCR2A = 70;
+	}
+	
+	else if((distance1_front > 10) & (distance2_right > 10) & (distance0_left < 10))
+	{
+		OCR2B = 70;
 		OCR2A = 30;
 	}
+	
+
 	
 	
 	/* 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder. */
@@ -126,10 +132,11 @@ void wheels_left(void)
 }
 
 
-void SonarSensor_init2(void)
+
+void SonarSensor_init2_right(void)
 {
 	DDRD = 0xFF;							// Port D all output.
-	DDRD &= ~(1<<DDD5);
+	DDRD = ~(1<<DDD5);
 	
 	PORTD |= (1<<PORTD5);					// Enable pull up on D5 (echo)
 	PORTD &= ~(1<<PIND4);					// Init D4 as low (trigger)
@@ -142,10 +149,10 @@ void SonarSensor_init2(void)
 }
 
 
-void SonarSensor_init1(void)
+void SonarSensor_init1_front(void)
 {	
 	DDRC = 0xFF;							// Port C all output.
-	DDRC &= ~(1<<DDC5);
+	DDRC = ~(1<<DDC5);
 	
 	PORTC |= (1<<PORTC5);					// Enable pull up on C5 (echo)
 	PORTC &= ~(1<<PINC4);					// Init C4 as low (trigger)
@@ -159,10 +166,10 @@ void SonarSensor_init1(void)
 }
 
 
-void SonarSensor_init0(void)
+void SonarSensor_init0_left(void)
 {
 	DDRB = 0xFF;							// Port B all output.
-	DDRB &= ~(1<<DDB1);
+	DDRB = ~(1<<DDB1);
 	
 	PORTB |= (1<<PORTB1);					// Enable pull up on B1 (echo)
 	PORTB &= ~(1<<PINB0);					// Init B0 as low (trigger)
@@ -207,7 +214,7 @@ void USART_putstring(char *StringPtr){
 
 ISR(PCINT2_vect) {
 	
-	if ( (PIND & (1 << PIND5)) == (1 << PIND5))								// Checks if echo is high
+	if (PIND & (1 << PIND5))								// Checks if echo is high
 	{
 		TCNT2 = 0;
 		PORTB |= (1 << PINB5);												// Toggles debug led
@@ -215,7 +222,7 @@ ISR(PCINT2_vect) {
 	
 	else
 	{
-		distance3 = TCNT2/3;					    // Save Timer value
+		distance2_right = TCNT2/3;					    // Save Timer value
 		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
 		//cli();
 	}
@@ -225,7 +232,7 @@ ISR(PCINT2_vect) {
 
 ISR(PCINT1_vect) {
 	
-	if ( (PINC & (1 << PINC5)) == (1 << PINC5))								// Checks if echo is high
+	if (PINC & (1 << PINC5))								// Checks if echo is high
 	{
 		TCNT1 = 0;		
 		PORTB |= (1 << PINB5);											   // Toggles Debug Led
@@ -233,7 +240,7 @@ ISR(PCINT1_vect) {
 	
 	else
 	{
-		distance2 = TCNT1/3;					// Save Timer value
+		distance1_front = TCNT1/3;					// Save Timer value
 		PORTB &= ~(1 << PINB5);					// Toggles Debug led
 		//cli();
 	}
@@ -242,7 +249,7 @@ ISR(PCINT1_vect) {
 
 ISR(PCINT0_vect) {
 	
-	if ( (PINB & (1 << PINB1)) == (1 << PINB1))								// Checks if echo is high
+	if (PINB & (1 << PINB1))								// Checks if echo is high
 	{
 		TCNT0 = 0;
 		PORTB |= (1 << PINB5);												// Toggles debug led
@@ -250,7 +257,7 @@ ISR(PCINT0_vect) {
 	
 	else
 	{
-		distance1 = TCNT0;					    // Save Timer value
+		distance0_left = TCNT0;					    // Save Timer value
 		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
 		//cli();
 	}
