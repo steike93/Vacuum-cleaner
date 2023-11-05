@@ -39,7 +39,7 @@ int main(void)
 	
 	wheels_init();
 	
-	USART_init(UBRR_value);
+	//USART_init(UBRR_value);
 	sei();
 	
 	while(1)
@@ -55,25 +55,25 @@ int main(void)
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTD &= ~(1<<PIND4);															// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		
-		itoa(distance2_right, String, 10);
+		//itoa(distance2_right, String, 10);
 		_delay_ms(10);
 		
 		char right[10] = "right: :";
-		USART_putstring(right);
-		USART_putstring(String);
-		USART_putstring(newline);
+		//USART_putstring(right);
+		//USART_putstring(String);
+		//USART_putstring(newline);
 		
 		
 		PORTB |= (1 << PINB0);
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTB &= ~(1<<PINB0);
 		
-		itoa(distance0_left, String, 10);
+		//itoa(distance0_left, String, 10);
 		
-		char left[10] = "left: :";
-		USART_putstring(left);
-		USART_putstring(String);
-		USART_putstring(newline);
+		//char left[10] = "left: :";
+		//USART_putstring(left);
+		//USART_putstring(String);
+		//USART_putstring(newline);
 		
 		
 		_delay_ms(10);
@@ -82,12 +82,12 @@ int main(void)
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
 		PORTC &= ~(1<<PINC4);
 		
-		itoa(distance1_front, String, 10);
+		//itoa(distance1_front, String, 10);
 		
-		char front[10] = "front :";
-		USART_putstring(front);
-		USART_putstring(String);
-		USART_putstring(newline);
+		//char front[10] = "front :";
+		//USART_putstring(front);
+		//USART_putstring(String);
+		//USART_putstring(newline);
 			
 		_delay_ms(1000);
 		
@@ -98,14 +98,16 @@ int main(void)
 void wheels_init(void)
 {
 	
-	DDRD |= (1 << DDD2);						// Set as output
-	PORTD |= (1 << PORTD2);						// Needs to be set HIGH due to error in atmega328pb chip.
+	DDRD |= (1 << DDD2) | ( 1 << DDD1);						// Set as output
+	PORTD |= (1 << PORTD1) | (1 << PORTD2);						// Needs to be set HIGH due to error in atmega328pb chip.
 	
 	
 	
 	TCCR3A |= (1 << COM3B1) | (1 << WGM31);	  // Fast PWM 8-bit
 	TCCR3B |= (1 << CS30) | (1 << WGM32);	  // No prescaling. Clear on compare match.
 	
+	TCCR4A |= (1 << COM4A1) | (1 << WGM40);
+	TCCR4B |= (1 << CS40) | (1 << WGM42);
 
 	
 }
@@ -114,13 +116,16 @@ void wheels_init(void)
 void wheels_adjusted()
 {
 	
-	OCR3B = 70;
+	OCR3B = 30;
+	OCR4A = 30;
 	_delay_ms(1000);
 	
 	OCR3B = 70;
+	OCR4A = 70;
 	_delay_ms(1000);
 	
 	OCR3B = 70;
+	OCR4A = 70;
 	_delay_ms(1000);
 	
 	/*															
