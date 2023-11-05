@@ -115,7 +115,7 @@ void wheels_init(void)
 
 void wheels_adjusted()
 {
-	
+	/*
 	OCR3B = 30;
 	OCR4A = 30;
 	_delay_ms(1000);
@@ -127,46 +127,45 @@ void wheels_adjusted()
 	OCR3B = 70;
 	OCR4A = 70;
 	_delay_ms(1000);
-	
-	/*															
+	*/
+														
 	
 	if((distance1_front > 10) & (distance2_right > 10) & (distance0_left > 10))
 	{
-		OCR2B = 120;																// Høyre hjul
-		OCR2A = 120;																  
+		OCR3B = 120;																// Høyre hjul
+		OCR4A = 120;																  
 	}
 	
 	
 	
 	else if((distance1_front < 10) & (distance2_right > distance0_left))
 	{
-		OCR2B = 30;		
-		OCR2A = 70;															  
+		OCR3B = 30;		
+		OCR4A = 70;															  
 	}
 	
 	else if((distance1_front < 10) & (distance2_right < distance0_left))
 	{
-		OCR2B = 70;
-		OCR2A = 70;
+		OCR3B = 70;
+		OCR4A = 70;
 	}
 	
 	else if((distance1_front > 10) & (distance2_right < 10) & (distance0_left > 10))
 	{
-		OCR2B = 30;
-		OCR2A = 70;
+		OCR3B = 30;
+		OCR4A = 70;
 	}
 	
 	else if((distance1_front > 10) & (distance2_right > 10) & (distance0_left < 10))
 	{
-		OCR2B = 70;
-		OCR2A = 30;
+		OCR3B = 70;
+		OCR4A = 30;
 	}
 	
 	
 	
 	// 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder.
 	
-	*/
 	
 	
 }
