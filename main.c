@@ -89,7 +89,7 @@ int main(void)
 		//USART_putstring(String);
 		//USART_putstring(newline);
 			
-		_delay_ms(1000);
+		_delay_ms(10);
 		
 		
 	}
@@ -98,73 +98,57 @@ int main(void)
 void wheels_init(void)
 {
 	
-	DDRD |= (1 << DDD2) | ( 1 << DDD1);						// Set as output
-	PORTD |= (1 << PORTD1) | (1 << PORTD2);						// Needs to be set HIGH due to error in atmega328pb chip.
+	DDRD =  (1 << DDD1) | (1 << DDD2);
+	PORTD =	(1 << PORTD1) | (1 << PORTD2);											// Must write a 1 to bit 2 of PORTD in order to get PWM output on PD2 from either Timer3 or Timer4
 	
-	
-	
-	TCCR3A |= (1 << COM3B1) | (1 << WGM31);	  // Fast PWM 8-bit
-	TCCR3B |= (1 << CS30) | (1 << WGM32);	  // No prescaling. Clear on compare match.
+	TCCR3A = (1 << COM3B1) | (1 << WGM30);							// Fast PWM 8-bit
+	TCCR3B = (1 << CS30) | (1 << CS32) | (1 << WGM32);				// 1024 pre-scaling. Clear on compare match.
 	
 	TCCR4A |= (1 << COM4A1) | (1 << WGM40);
-	TCCR4B |= (1 << CS40) | (1 << WGM42);
-
+	TCCR4B |= (1 << CS40)  | (1 << CS42)| (1 << WGM42);
 	
 }
 
 
 void wheels_adjusted()
 {
-	/*
-	OCR3B = 30;
-	OCR4A = 30;
-	_delay_ms(1000);
-	
-	OCR3B = 70;
-	OCR4A = 70;
-	_delay_ms(1000);
-	
-	OCR3B = 70;
-	OCR4A = 70;
-	_delay_ms(1000);
-	*/
-														
+													
 	
 	if((distance1_front > 10) & (distance2_right > 10) & (distance0_left > 10))
 	{
-		OCR3B = 120;																// Høyre hjul
-		OCR4A = 120;																  
+		OCR3B = 25;																// Høyre hjul
+		OCR4A = 25;																// Venstre hjul  
 	}
 	
 	
 	
 	else if((distance1_front < 10) & (distance2_right > distance0_left))
 	{
-		OCR3B = 30;		
-		OCR4A = 70;															  
+		OCR3B = 20;		
+		OCR4A = 23;															  
 	}
 	
 	else if((distance1_front < 10) & (distance2_right < distance0_left))
 	{
-		OCR3B = 70;
-		OCR4A = 70;
+		OCR3B = 23;
+		OCR4A = 23;
 	}
 	
 	else if((distance1_front > 10) & (distance2_right < 10) & (distance0_left > 10))
 	{
-		OCR3B = 30;
-		OCR4A = 70;
+		OCR3B = 20;
+		OCR4A = 23;
 	}
 	
 	else if((distance1_front > 10) & (distance2_right > 10) & (distance0_left < 10))
 	{
-		OCR3B = 70;
-		OCR4A = 30;
+		OCR3B = 23;
+		OCR4A = 20;
 	}
 	
 	
 	
-	// 70 er nullpunktet. 120 går mot klokken 10 runder på 10 sekunder . 30 går med klokken 10 runder på 10 sekunder.
+	// 23 er nullpunktet. 20 går med klokken en runde per sekund. 25 går mot klokken en runde per sekund..
 	
 	
 	
