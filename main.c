@@ -20,6 +20,8 @@ uint16_t distance0_left;
 uint16_t distance1_front;
 uint16_t distance2_right;
 
+uint16_t batteryVoltage;
+
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
@@ -30,6 +32,9 @@ void SonarSensor_init0_left(void);
 void SonarSensor_init1_front(void);
 void SonarSensor_init2_right(void);
 
+void batteryMonitoring_init(void);
+void batteryMonitoring(void);
+
 
 int main(void)
 {
@@ -39,6 +44,8 @@ int main(void)
 	
 	wheels_init();
 	
+	batteryMonitoring_init();	
+	
 	//USART_init(UBRR_value);
 	sei();
 	
@@ -46,6 +53,8 @@ int main(void)
 	{
 		
 		wheels_adjusted();
+		
+		batteryMonitoring();
 		
 
 		char newline[10] = " \n";
@@ -91,6 +100,8 @@ int main(void)
 			
 		_delay_ms(10);
 		
+		ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt
+		
 		
 	}
 }
@@ -99,7 +110,7 @@ void wheels_init(void)
 {
 	
 	DDRD =  (1 << DDD1) | (1 << DDD2);
-	PORTD =	(1 << PORTD1) | (1 << PORTD2);											// Must write a 1 to bit 2 of PORTD in order to get PWM output on PD2 from either Timer3 or Timer4
+	PORTD =	(1 << PORTD1) | (1 << PORTD2);							// Must write a 1 to bit 2 of PORTD in order to get PWM output on PD2 from either Timer3 or Timer4
 	
 	TCCR3A = (1 << COM3B1) | (1 << WGM30);							// Fast PWM 8-bit
 	TCCR3B = (1 << CS30) | (1 << CS32) | (1 << WGM32);				// 1024 pre-scaling. Clear on compare match.
@@ -112,14 +123,12 @@ void wheels_init(void)
 
 void wheels_adjusted()
 {
-													
-	
+														
 	if((distance1_front > 10) & (distance2_right > 10) & (distance0_left > 10))
 	{
 		OCR3B = 25;																// Høyre hjul
 		OCR4A = 25;																// Venstre hjul  
 	}
-	
 	
 	
 	else if((distance1_front < 10) & (distance2_right > distance0_left))
@@ -147,9 +156,7 @@ void wheels_adjusted()
 	}
 	
 	
-	
 	// 23 er nullpunktet. 20 går med klokken en runde per sekund. 25 går mot klokken en runde per sekund..
-	
 	
 	
 }
@@ -227,27 +234,58 @@ void USART_TransmitPolling(char *String)
 }
 
 
-void USART_putstring(char *StringPtr){
+void USART_putstring(char *StringPtr)
+{
 	while(*StringPtr != 0x00){
 		USART_TransmitPolling(*StringPtr);
 		StringPtr++;}
 }
 
+void batteryMonitoring_init()
+{
+	DDRC &= ~(1 << DDC0);																// Set C0 as input
+	DDRC |= (1 << DDC1);																// Set C1 as output
+	PORTC |= (1 << PINC0);																// Set internal pull-up for PINC0
+	
+	ADMUX = 0x00;																		// Only ADC0 is used
+	ADCSRA |= (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);								// Enables ADC. Prescaler sets ADC frequency to 250 kHz.
+
+}
+
+void batteryMonitoring()
+{
+	if(batteryVoltage > 876)
+	{
+		PORTC |= (1 << PORTC1);
+	}
+	else
+	{
+		PORTC &= ~(1 << DDC0);
+	}
+	
+	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
+	A voltage divider of 1 kohm and 680 makes sure the PC0 never reads anything above 5.0 V (8.4 V). When the battery is starting to drain out PC0 reads 4.28 V.
+	
+	ADC formula = (Vin*1024)/(VREF). VREF (AVCC shall be connected externally to VCC through LP-filter.
+	
+	*/
+	
+}
 
 
 
 ISR(PCINT2_vect) {
 	
-	if (PIND & (1 << PIND5))								// Checks if echo is high
+	if (PIND & (1 << PIND5))															// Checks if echo is high
 	{
 		TCNT2 = 0;
-		PORTB |= (1 << PINB5);												// Toggles debug led
+		PORTB |= (1 << PINB5);															// Toggles debug led
 	}
 	
 	else
 	{
-		distance2_right = TCNT2/3;					    // Save Timer value
-		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
+		distance2_right = TCNT2/3;														// Save Timer value
+		PORTB &= ~(1 << PINB5);			    											// Toggles debug led
 		//cli();
 	}
 }
@@ -256,16 +294,16 @@ ISR(PCINT2_vect) {
 
 ISR(PCINT1_vect) {
 	
-	if (PINC & (1 << PINC5))								// Checks if echo is high
+	if (PINC & (1 << PINC5))															// Checks if echo is high
 	{
 		TCNT1 = 0;		
-		PORTB |= (1 << PINB5);											   // Toggles Debug Led
+		PORTB |= (1 << PINB5);															// Toggles Debug Led
 	}
 	
 	else
 	{
-		distance1_front = TCNT1/3;					// Save Timer value
-		PORTB &= ~(1 << PINB5);					// Toggles Debug led
+		distance1_front = TCNT1/3;														// Save Timer value
+		PORTB &= ~(1 << PINB5);															// Toggles Debug led
 		//cli();
 	}
 }
@@ -273,16 +311,32 @@ ISR(PCINT1_vect) {
 
 ISR(PCINT0_vect) {
 	
-	if (PINB & (1 << PINB1))								// Checks if echo is high
+	if (PINB & (1 << PINB1))															// Checks if echo is high
 	{
 		TCNT0 = 0;
-		PORTB |= (1 << PINB5);												// Toggles debug led
+		PORTB |= (1 << PINB5);															// Toggles debug led
 	}
 	
 	else
 	{
-		distance0_left = TCNT0;					    // Save Timer value
-		PORTB &= ~(1 << PINB5);			    	// Toggles debug led
+		distance0_left = TCNT0;															// Save Timer value
+		PORTB &= ~(1 << PINB5);			    											// Toggles debug led
 		//cli();
 	}
 }
+
+
+ISR(ADC_vect)
+{
+	while(1)
+	{
+	if (ADCSRA & (1 << ADIF)) 															// Checks if ADC conversion is completed		
+	{
+		batteryVoltage = ADC;
+	}
+	}
+}
+	
+	
+	//ADC = (Vin*1024)/(vref)
+	
