@@ -260,11 +260,11 @@ void batteryMonitoring()
 	}
 	else
 	{
-		PORTC &= ~(1 << DDC0);
+		PORTC &= ~(1 << DDC1);
 	}
 	
 	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
-	A voltage divider of 1 kohm and 680 makes sure the PC0 never reads anything above 5.0 V (8.4 V). When the battery is starting to drain out PC0 reads 4.28 V.
+	A voltage divider of 1 kohm and 680 ohm makes sure the PC0 never reads anything above 5.0 V (8.4 V). When the battery is starting to drain out PC0 reads 4.28 V.
 	
 	ADC formula = (Vin*1024)/(VREF). VREF (AVCC shall be connected externally to VCC through LP-filter.
 	
@@ -338,5 +338,4 @@ ISR(ADC_vect)
 }
 	
 	
-	//ADC = (Vin*1024)/(vref)
 	
