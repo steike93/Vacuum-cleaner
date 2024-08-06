@@ -22,6 +22,9 @@ uint16_t distance2_right;
 
 uint16_t batteryVoltage;
 
+volatile bool converted;
+volatile bool newValue;
+
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
@@ -34,6 +37,8 @@ void SonarSensor_init2_right(void);
 
 void batteryMonitoring_init(void);
 void batteryMonitoring(void);
+
+void SPI_init(void);
 
 
 int main(void)
@@ -248,12 +253,14 @@ void batteryMonitoring_init()
 	PORTC |= (1 << PINC0);																// Set internal pull-up for PINC0
 	
 	ADMUX = 0x00;																		// Only ADC0 is used
-	ADCSRA |= (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);								// Enables ADC. Prescaler sets ADC frequency to 250 kHz.
+	ADCSRA |= (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);					// Enables ADC. Prescaler sets ADC frequency to 250 kHz.
 
 }
 
 void batteryMonitoring()
 {
+	ADCSRA |= (1 << ADSC);
+	
 	if(batteryVoltage > 876)
 	{
 		PORTC |= (1 << PORTC1);
@@ -333,6 +340,7 @@ ISR(ADC_vect)
 	if (ADCSRA & (1 << ADIF)) 															// Checks if ADC conversion is completed		
 	{
 		batteryVoltage = ADC;
+		ADCSRA &= ~(1 << ADSC);
 	}
 	}
 }
