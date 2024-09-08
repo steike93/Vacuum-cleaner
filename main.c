@@ -10,20 +10,20 @@
 #define USART_BAUDRATE 9600
 #define UBRR_value (((F_CPU / (USART_BAUDRATE * 16UL))) - 1)
 
+
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
 uint16_t distance0_left;
 uint16_t distance1_front;
 uint16_t distance2_right;
 
 uint16_t batteryVoltage;
-
-volatile bool converted;
-volatile bool newValue;
 
 
 void USART_init(long UBRR);
@@ -38,7 +38,9 @@ void SonarSensor_init2_right(void);
 void batteryMonitoring_init(void);
 void batteryMonitoring(void);
 
-void SPI_init(void);
+void SPI0_Master_init(void);
+void SPI0_Transmitt(char *screenData);
+void LCD_Send_Command();
 
 
 int main(void)
@@ -105,7 +107,15 @@ int main(void)
 			
 		_delay_ms(10);
 		
-		ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt
+		
+		
+		//ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt. Skal vel ikke være her?
+		
+		// Må legge inn slik at vifte kan skrus av via knapp.
+		
+		SPI0_Master_init();
+		LCD_Send_Command();
+		SPI0_Transmitt("Batteriprosenten er: "); 
 		
 		
 	}
@@ -187,8 +197,8 @@ void SonarSensor_init2_right(void)
 
 void SonarSensor_init1_front(void)
 {	
-	//DDRC = 0xFF;							// Port C all output.
-	DDRC = ~(1<<DDC5);
+	
+	DDRC = ~(1<<DDC5);						// Set as input
 	
 	PORTC |= (1<<PORTC5);					// Enable pull up on C5 (echo)
 	PORTC &= ~(1<<PINC4);					// Init C4 as low (trigger)
@@ -259,7 +269,7 @@ void batteryMonitoring_init()
 
 void batteryMonitoring()
 {
-	ADCSRA |= (1 << ADSC);
+	ADCSRA |= (1 << ADSC);																// Starts ADC conversion
 	
 	if(batteryVoltage > 876)
 	{
@@ -279,6 +289,52 @@ void batteryMonitoring()
 	
 }
 
+
+
+
+void SPI0_Master_init()
+{
+
+	DDRB |= (1<< DDB3) | (1<< DDB5);				// SET MOSI/SDA (pin3) and SCK (pin5) as output
+	DDRB &= (1 << DDB2);							// SET nCS/nSS (pin2) as output. Drives the SLAVE.	
+	
+	PORTB |= (1 << PORTB2);							// Set nCS HIGH (inactive)
+	
+	// Enable SPI, Master, set clock rate fck/16 
+	SPCR0 |= (1 << SPE) | (1<<MSTR) | (1<<SPR0);
+	
+}
+
+void LCD_Send_Command()
+{
+	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
+	SPDR0 = 0x41;									// Display on
+	_delay_us(100);
+	SPDR0 = 0x51;									// Clears sceen
+	_delay_ms(2);	 
+	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	
+	
+}
+
+
+void SPI0_Transmitt(char *screenData)
+{
+	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
+	
+	while(*screenData)
+	{
+		SPDR0 = screenData;
+		screenData++;
+	}
+	
+	while(!(SPSR0 & (1<<SPIF)))					 // Waits until transmission is complete
+	{
+	}
+	
+	
+	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+}
 
 
 ISR(PCINT2_vect) {
@@ -340,7 +396,7 @@ ISR(ADC_vect)
 	if (ADCSRA & (1 << ADIF)) 															// Checks if ADC conversion is completed		
 	{
 		batteryVoltage = ADC;
-		ADCSRA &= ~(1 << ADSC);
+		//ADCSRA &= ~(1 << ADSC);														// Writing it to 0 has no effect, sets to 0 automatically when ADC conversion is complete.
 	}
 	}
 }
