@@ -25,6 +25,8 @@ uint16_t distance2_right;
 
 uint16_t batteryVoltage;
 
+char textOnLCD[24] = "Batteriprosenten er: ";
+
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
@@ -38,9 +40,11 @@ void SonarSensor_init2_right(void);
 void batteryMonitoring_init(void);
 void batteryMonitoring(void);
 
+void Write_SPI(char *screenData);
 void SPI0_Master_init(void);
 void SPI0_Transmitt(char *screenData);
 void LCD_Send_Command();
+void LCD_Clear_Screen();
 
 
 int main(void)
@@ -53,15 +57,22 @@ int main(void)
 	
 	batteryMonitoring_init();	
 	
+	SPI0_Master_init();								// Sets SPI Master
+	LCD_Send_Command();								// Display ON, clears screen
+	
 	//USART_init(UBRR_value);
 	sei();
 	
 	while(1)
 	{
+		SPI0_Master_init();
+		LCD_Send_Command();
 		
 		wheels_adjusted();
 		
 		batteryMonitoring();
+		
+		Write_SPI(textOnLCD);
 		
 
 		char newline[10] = " \n";
@@ -113,9 +124,8 @@ int main(void)
 		
 		// Må legge inn slik at vifte kan skrus av via knapp.
 		
-		SPI0_Master_init();
-		LCD_Send_Command();
-		SPI0_Transmitt("Batteriprosenten er: "); 
+		LCD_Clear_Screen();
+		
 		
 		
 	}
@@ -291,7 +301,6 @@ void batteryMonitoring()
 
 
 
-
 void SPI0_Master_init()
 {
 
@@ -305,17 +314,39 @@ void SPI0_Master_init()
 	
 }
 
+
+void Write_SPI(char *screenData)
+{
+	SPI0_Transmitt(screenData);
+	
+	char strBatteryVoltage[2];
+	
+	sprintf(strBatteryVoltage, "%d", batteryVoltage); 
+
+	SPI0_Transmitt(strBatteryVoltage);
+	
+}
+
+
 void LCD_Send_Command()
 {
 	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
 	SPDR0 = 0x41;									// Display on
 	_delay_us(100);
-	SPDR0 = 0x51;									// Clears sceen
+	SPDR0 = 0x51;									// Clears screen
 	_delay_ms(2);	 
 	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
 	
-	
 }
+
+void LCD_Clear_Screen()
+{
+	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
+	SPDR0 = 0x51;									// Clears screen
+	_delay_ms(2);
+	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+}
+
 
 
 void SPI0_Transmitt(char *screenData)
@@ -324,17 +355,19 @@ void SPI0_Transmitt(char *screenData)
 	
 	while(*screenData)
 	{
-		SPDR0 = screenData;
+		SPDR0 = screenData;							// Må kanskje bruke SPRD0 = *screenData;
 		screenData++;
 	}
 	
-	while(!(SPSR0 & (1<<SPIF)))					 // Waits until transmission is complete
+	while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
 	{
 	}
 	
-	
 	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	
+	
 }
+
 
 
 ISR(PCINT2_vect) {
