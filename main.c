@@ -5,11 +5,9 @@
  *  Author: Erlend
  */ 
 
-
 #define F_CPU 16000000UL
 #define USART_BAUDRATE 9600
 #define UBRR_value (((F_CPU / (USART_BAUDRATE * 16UL))) - 1)
-
 
 #include <avr/io.h>
 #include <util/delay.h>
@@ -17,16 +15,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
-
 uint16_t distance0_left;
 uint16_t distance1_front;
 uint16_t distance2_right;
 
 uint16_t batteryVoltage;
+uint16_t batteryVoltagePercentage;
 
 char textOnLCD[24] = "Batteriprosenten er: ";
-
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
@@ -46,6 +42,10 @@ void SPI0_Transmitt(char *screenData);
 void LCD_Send_Command();
 void LCD_Clear_Screen();
 
+void initFunctionalityButton();
+void FunctionalityButton();
+
+
 
 int main(void)
 {
@@ -61,16 +61,21 @@ int main(void)
 	LCD_Send_Command();								// Display ON, clears screen
 	
 	//USART_init(UBRR_value);
+	
+	initFunctionalityButton();
+	
 	sei();
 	
 	while(1)
-	{
-		SPI0_Master_init();
-		LCD_Send_Command();
+	{	
+		
+		FunctionalityButton();
 		
 		wheels_adjusted();
 		
 		batteryMonitoring();
+		
+		LCD_Clear_Screen();
 		
 		Write_SPI(textOnLCD);
 		
@@ -117,16 +122,10 @@ int main(void)
 		//USART_putstring(newline);
 			
 		_delay_ms(10);
-		
-		
-		
+			
 		//ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt. Skal vel ikke være her?
 		
-		// Må legge inn slik at vifte kan skrus av via knapp.
-		
-		LCD_Clear_Screen();
-		
-		
+		// Må legge inn slik at vifte kan skrus av via knapp.	
 		
 	}
 }
@@ -180,10 +179,8 @@ void wheels_adjusted()
 		OCR4A = 20;
 	}
 	
-	
 	// 23 er nullpunktet. 20 går med klokken en runde per sekund. 25 går mot klokken en runde per sekund..
-	
-	
+		
 }
 
 
@@ -281,13 +278,27 @@ void batteryMonitoring()
 {
 	ADCSRA |= (1 << ADSC);																// Starts ADC conversion
 	
-	if(batteryVoltage > 876)
+	if(batteryVoltage >= 1024)
 	{
-		PORTC |= (1 << PORTC1);
+		batteryVoltagePercentage = 100;
+	}
+	else if(batteryVoltage <= 876)
+	{
+		batteryVoltagePercentage = 10;
 	}
 	else
 	{
-		PORTC &= ~(1 << DDC1);
+		batteryVoltagePercentage = (100 - 0.608*(1024-batteryVoltage));
+	}
+	
+	
+	if(batteryVoltagePercentage > 10)
+	{
+		PORTC |= (1 << PORTC1);								
+	}
+	else
+	{
+		PORTC &= ~(1 << PORTC1);													// Skrur av vifte
 	}
 	
 	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
@@ -319,9 +330,9 @@ void Write_SPI(char *screenData)
 {
 	SPI0_Transmitt(screenData);
 	
-	char strBatteryVoltage[2];
+	char strBatteryVoltage[4];
 	
-	sprintf(strBatteryVoltage, "%d", batteryVoltage); 
+	sprintf(strBatteryVoltage, "%d", batteryVoltagePercentage);			// Bruk en matematisk funksjon for å estimere batteriprosenten. 1024 = 100 %, 876 er ca 10 %.
 
 	SPI0_Transmitt(strBatteryVoltage);
 	
@@ -355,7 +366,7 @@ void SPI0_Transmitt(char *screenData)
 	
 	while(*screenData)
 	{
-		SPDR0 = screenData;							// Må kanskje bruke SPRD0 = *screenData;
+		SPDR0 = *screenData;							// Må kanskje bruke SPRD0 = *screenData;
 		screenData++;
 	}
 	
@@ -363,9 +374,23 @@ void SPI0_Transmitt(char *screenData)
 	{
 	}
 	
-	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	PORTB |= (1 << PORTB2);							// Sets nCS HIGH (inactive)
 	
-	
+}
+
+
+void initFunctionalityButton()
+{
+	DDRD &= ~(0 << PIND7);							// Set PIN 7 as an input
+	PORTD |= (1 << PORTD7);							// Enable internal pull-up
+}
+
+void FunctionalityButton()
+{
+	if(PIND & (PIND7) == 0)
+	{
+		// Do something. Turn off all functionality.
+	}
 }
 
 
@@ -385,7 +410,6 @@ ISR(PCINT2_vect) {
 		//cli();
 	}
 }
-
 
 
 ISR(PCINT1_vect) {
