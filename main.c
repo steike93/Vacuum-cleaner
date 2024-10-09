@@ -27,8 +27,12 @@ char textOnLCD[24] = "Batteriprosenten er: ";
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
 void USART_putstring(char *StringPtr);
+
 void wheels_init(void);
 void wheels_adjusted(void);
+
+void fan_init(void);
+
 void SonarSensor_init0_left(void);
 void SonarSensor_init1_front(void);
 void SonarSensor_init2_right(void);
@@ -124,8 +128,7 @@ int main(void)
 		_delay_ms(10);
 			
 		//ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt. Skal vel ikke være her?
-		
-		// Må legge inn slik at vifte kan skrus av via knapp.	
+			
 		
 	}
 }
@@ -276,6 +279,10 @@ void batteryMonitoring_init()
 
 void batteryMonitoring()
 {
+	
+	char textBatteryLevelLow[53] = "Batteriprosenten er for lav, skrur av vifte og hjul";
+	
+	
 	ADCSRA |= (1 << ADSC);																// Starts ADC conversion
 	
 	if(batteryVoltage >= 1024)
@@ -285,21 +292,17 @@ void batteryMonitoring()
 	else if(batteryVoltage <= 876)
 	{
 		batteryVoltagePercentage = 10;
+		PORTD &= ~(((1 << PORTD1) | (1 << PORTD2) | (1 << PORTD6)));				// Turns off wheels and fan
+		LCD_Clear_Screen();
+		
+		Write_SPI(textBatteryLevelLow);
 	}
 	else
 	{
 		batteryVoltagePercentage = (100 - 0.608*(1024-batteryVoltage));
 	}
 	
-	
-	if(batteryVoltagePercentage > 10)
-	{
-		PORTC |= (1 << PORTC1);								
-	}
-	else
-	{
-		PORTC &= ~(1 << PORTC1);													// Skrur av vifte
-	}
+
 	
 	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
 	A voltage divider of 1 kohm and 680 ohm makes sure the PC0 never reads anything above 5.0 V (8.4 V). When the battery is starting to drain out PC0 reads 4.28 V.
@@ -381,7 +384,7 @@ void SPI0_Transmitt(char *screenData)
 
 void initFunctionalityButton()
 {
-	DDRD &= ~(0 << PIND7);							// Set PIN 7 as an input
+	DDRD &= ~(1 << DDD7);							// Set PIN 7 as an input
 	PORTD |= (1 << PORTD7);							// Enable internal pull-up
 }
 
@@ -389,8 +392,17 @@ void FunctionalityButton()
 {
 	if(PIND & (PIND7) == 0)
 	{
-		// Do something. Turn off all functionality.
+		PORTD &= ~(((1 << PORTD1) | (1 << PORTD2)) | (1 << PORTD7));	 // Turns off wheels and fan
+		
+	
+		
 	}
+}
+
+void fan_init()
+{
+	DDRD  |= (1 << DDD6);							
+	PORTD |= (1 << PORTD6);							// Set MOSFET controlling FAN ON
 }
 
 
