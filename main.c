@@ -15,12 +15,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-uint16_t distance0_left;
-uint16_t distance1_front;
-uint16_t distance2_right;
+volatile uint16_t distance0_left;
+volatile uint16_t distance1_front;
+volatile uint16_t distance2_right;
 
-uint16_t batteryVoltage;
-uint16_t batteryVoltagePercentage;
+volatile uint16_t batteryVoltage;
+volatile uint16_t batteryVoltagePercentage;
+
+volatile uint8_t buttonState = 0;
+volatile uint8_t lastButtonsState = 0;
+
 
 char textOnLCD[24] = "Batteriprosenten er: ";
 
@@ -67,6 +71,8 @@ int main(void)
 	//USART_init(UBRR_value);
 	
 	initFunctionalityButton();
+	
+	fan_init();
 	
 	sei();
 	
@@ -279,9 +285,7 @@ void batteryMonitoring_init()
 
 void batteryMonitoring()
 {
-	
 	char textBatteryLevelLow[53] = "Batteriprosenten er for lav, skrur av vifte og hjul";
-	
 	
 	ADCSRA |= (1 << ADSC);																// Starts ADC conversion
 	
@@ -301,7 +305,6 @@ void batteryMonitoring()
 	{
 		batteryVoltagePercentage = (100 - 0.608*(1024-batteryVoltage));
 	}
-	
 
 	
 	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
@@ -309,7 +312,9 @@ void batteryMonitoring()
 	
 	ADC formula = (Vin*1024)/(VREF). VREF (AVCC shall be connected externally to VCC through LP-filter.
 	
-	*/
+	1024 = 100 % charged, 876 = 10 % charged.
+	
+	*/ 
 	
 }
 
@@ -385,24 +390,36 @@ void SPI0_Transmitt(char *screenData)
 void initFunctionalityButton()
 {
 	DDRD &= ~(1 << DDD7);							// Set PIN 7 as an input
-	PORTD |= (1 << PORTD7);							// Enable internal pull-up
+	PORTD |= (1 << PORTD7);							// Enable internal pull-up. Makes having any external voltage source unncessary.
 }
 
 void FunctionalityButton()
 {
-	if(PIND & (PIND7) == 0)
-	{
-		PORTD &= ~(((1 << PORTD1) | (1 << PORTD2)) | (1 << PORTD7));	 // Turns off wheels and fan
-		
+	buttonState = !(PIND & (1 << PIND7));			// Read button state. Inverted due to internal pull-up. Now 1 is ON. 
 	
+	if(buttonState != lastButtonsState)
+	{
+		_delay_ms(50);								// Debounce feature. 50 ms has no base on any calculated value. Should be dependent on internal pull-up resistor and capacitance.
+		
+		if(buttonState == 1)
+		{
+			PORTD |= (1 << PORTD1) | (1 << PORTD2) | (1 << PORTD6);			// Turns on wheels and fan
+		}	
+		else if (buttonState == 0)
+		{
+			PORTD &= ~(((1 << PORTD1) | (1 << PORTD2)) | (1 << PORTD6));	 // Turns on wheels and fan
+		}
 		
 	}
+	
+	lastButtonsState = buttonState;
+	
 }
 
 void fan_init()
 {
 	DDRD  |= (1 << DDD6);							
-	PORTD |= (1 << PORTD6);							// Set MOSFET controlling FAN ON
+	PORTD |= (1 << PORTD6);
 }
 
 
