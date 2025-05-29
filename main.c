@@ -26,7 +26,7 @@ volatile uint8_t buttonState = 0;
 volatile uint8_t lastButtonsState = 0;
 
 
-char textOnLCD[24] = "Batteriprosenten er: ";
+char strBatteryVoltage[4];
 
 void USART_init(long UBRR);
 void USART_TransmitPolling(char *distance);
@@ -44,14 +44,20 @@ void SonarSensor_init2_right(void);
 void batteryMonitoring_init(void);
 void batteryMonitoring(void);
 
-void Write_SPI(char *screenData);
 void SPI0_Master_init(void);
-void SPI0_Transmitt(char *screenData);
+void SPI0_Transmitt(char* str);
 void LCD_Send_Command();
 void LCD_Clear_Screen();
 
+void init_char_mapping();
+int get_mapped_value(char c);
+
+int char_to_int_map[256] = {0};
+
 void initFunctionalityButton();
 void FunctionalityButton();
+
+char textforBattery[100] = "BATTERIPROSENT ER: ";
 
 
 
@@ -65,8 +71,11 @@ int main(void)
 	
 	batteryMonitoring_init();	
 	
-	SPI0_Master_init();								// Sets SPI Master
-	LCD_Send_Command();								// Display ON, clears screen
+	SPI0_Master_init();
+	init_char_mapping();
+	LCD_Send_Command();
+	
+	
 	
 	//USART_init(UBRR_value);
 	
@@ -74,24 +83,31 @@ int main(void)
 	
 	fan_init();
 	
+	int timerdisplay = 0;
+	
+	
 	sei();
 	
 	while(1)
 	{	
+		timerdisplay++;
+		
+		LCD_Clear_Screen();
 		
 		FunctionalityButton();
 		
 		wheels_adjusted();
 		
-		batteryMonitoring();
-		
-		LCD_Clear_Screen();
-		
-		Write_SPI(textOnLCD);
+		if(timerdisplay == 1000)
+		{
+			batteryMonitoring();
+			timerdisplay = 0;
+		}
 		
 
-		char newline[10] = " \n";
-		char String[10];
+		
+		//char newline[10] = " \n";
+		//char String[10];
 		
 		PORTD |= (1 << PIND4);
 		_delay_us(10);																	// 10 us trigger. Echo pin is pulled high by control circuit of sonar sensor.
@@ -100,7 +116,7 @@ int main(void)
 		//itoa(distance2_right, String, 10);
 		_delay_ms(10);
 		
-		char right[10] = "right: :";
+		//char right[10] = "right: :";
 		//USART_putstring(right);
 		//USART_putstring(String);
 		//USART_putstring(newline);
@@ -134,10 +150,16 @@ int main(void)
 		_delay_ms(10);
 			
 		//ADCSRA |= (1 << ADIE);														 // Enables ADC interrupt. Skal vel ikke være her?
-			
+		
+		
+		LCD_Clear_Screen();
+		
+		//batteryVoltagePercentage = 100;
+	
 		
 	}
 }
+
 
 void wheels_init(void)
 {
@@ -152,6 +174,7 @@ void wheels_init(void)
 	TCCR4B |= (1 << CS40)  | (1 << CS42)| (1 << WGM42);
 	
 }
+
 
 
 void wheels_adjusted()
@@ -285,13 +308,28 @@ void batteryMonitoring_init()
 
 void batteryMonitoring()
 {
-	char textBatteryLevelLow[53] = "Batteriprosenten er for lav, skrur av vifte og hjul";
 	
-	ADCSRA |= (1 << ADSC);																// Starts ADC conversion
+	char textBatteryLevelLow[53] = "BATTERIPROSENT LAV, VIFTE OG  HJUL ER AVSKRUDD "; 
+	
+	//ADCSRA |= (1 << ADSC);																// Starts ADC conversion
+	
+	//batteryVoltage = ADCH;
+	
+	batteryVoltage = 879;
 	
 	if(batteryVoltage >= 1024)
 	{
 		batteryVoltagePercentage = 100;
+		LCD_Clear_Screen();
+		
+		
+		sprintf(strBatteryVoltage, "%d", batteryVoltagePercentage);			// 1024 = 100 %, 876 er ca 10 %.
+		
+		SPI0_Transmitt(textforBattery);
+		SPI0_Transmitt(strBatteryVoltage);
+		SPI0_Transmitt(" %   ");
+		LCD_Clear_Screen();
+		
 	}
 	else if(batteryVoltage <= 876)
 	{
@@ -299,12 +337,37 @@ void batteryMonitoring()
 		PORTD &= ~(((1 << PORTD1) | (1 << PORTD2) | (1 << PORTD6)));				// Turns off wheels and fan
 		LCD_Clear_Screen();
 		
-		Write_SPI(textBatteryLevelLow);
+		SPI0_Transmitt(textBatteryLevelLow);
+		LCD_Clear_Screen();
+		
+		SPI0_Transmitt(textforBattery);
+		
+		sprintf(strBatteryVoltage, "%d", batteryVoltagePercentage);			// 1024 = 100 %, 876 er ca 10 %.
+		SPI0_Transmitt(strBatteryVoltage);
+		SPI0_Transmitt(" % ");
+		LCD_Clear_Screen();
+		
 	}
 	else
 	{
+		LCD_Clear_Screen();
+		
+		SPI0_Transmitt(textforBattery);
+		
 		batteryVoltagePercentage = (100 - 0.608*(1024-batteryVoltage));
+		sprintf(strBatteryVoltage, "%d", batteryVoltagePercentage);			// 1024 = 100 %, 876 er ca 10 %.
+		SPI0_Transmitt(strBatteryVoltage);
+		SPI0_Transmitt(" %   ");
+		LCD_Clear_Screen();
+		
+		
 	}
+	
+
+}
+
+
+	
 
 	
 	/* Maximum theoretical battery voltage 8.4 V. When battery voltage is 7.2 the battery is starting to be drained out. 
@@ -313,78 +376,245 @@ void batteryMonitoring()
 	ADC formula = (Vin*1024)/(VREF). VREF (AVCC shall be connected externally to VCC through LP-filter.
 	
 	1024 = 100 % charged, 876 = 10 % charged.
-	
-	*/ 
-	
-}
 
+*/
 
 
 void SPI0_Master_init()
 {
 
 	DDRB |= (1<< DDB3) | (1<< DDB5);				// SET MOSI/SDA (pin3) and SCK (pin5) as output
-	DDRB &= (1 << DDB2);							// SET nCS/nSS (pin2) as output. Drives the SLAVE.	
+	DDRB |= (1 << DDB2);							// SET nCS/nSS (pin2) as output. Drives the SLAVE.
 	
 	PORTB |= (1 << PORTB2);							// Set nCS HIGH (inactive)
 	
-	// Enable SPI, Master, set clock rate fck/16 
-	SPCR0 |= (1 << SPE) | (1<<MSTR) | (1<<SPR0);
+	// Enable SPI, Master, set clock rate fck/128
+	SPCR0 |= (1 << SPE) | (1<<MSTR) | (1<<SPR0) | (1 << SPR1) |  (1 << CPOL) | (1 << CPHA);
 	
 }
 
 
-void Write_SPI(char *screenData)
-{
-	SPI0_Transmitt(screenData);
-	
-	char strBatteryVoltage[4];
-	
-	sprintf(strBatteryVoltage, "%d", batteryVoltagePercentage);			// Bruk en matematisk funksjon for å estimere batteriprosenten. 1024 = 100 %, 876 er ca 10 %.
-
-	SPI0_Transmitt(strBatteryVoltage);
-	
-}
 
 
 void LCD_Send_Command()
 {
+	
 	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
-	SPDR0 = 0x41;									// Display on
 	_delay_us(100);
-	SPDR0 = 0x51;									// Clears screen
-	_delay_ms(2);	 
-	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	
+	
+	SPDR0 = 0xFE;
+	while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+	{
+	}
+	_delay_us(100);
+	
+	SPDR0 = 0x41;
+	while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+	{
+	}
+	_delay_us(100);
+	
+	
+	SPDR0 = 0x51;
+	while(!(SPSR0 & (1<<SPIF)))						 // Set brightness
+	{
+	}
+	_delay_us(100);
+	
+	SPDR0 = 255;
+	while(!(SPSR0 & (1<<SPIF)))						 // Set brightness
+	{
+	}
+	_delay_us(100);
+
+	PORTB |= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	_delay_us(100);
+	
 	
 }
+
 
 void LCD_Clear_Screen()
 {
-	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
-	SPDR0 = 0x51;									// Clears screen
-	_delay_ms(2);
-	PORTB &= (1 << PORTB2);							// Sets nCS HIGH (inactive)
-}
-
-
-
-void SPI0_Transmitt(char *screenData)
-{
-	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
 	
-	while(*screenData)
+	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
+	_delay_us(100);
+	
+	SPDR0 = 0xFE;									// Prefix
+	while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
 	{
-		SPDR0 = *screenData;							// Må kanskje bruke SPRD0 = *screenData;
-		screenData++;
 	}
+	_delay_us(100);
+	
+	SPDR0 = 0x51;									// Clears screen
 	
 	while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
 	{
 	}
+	_delay_ms(2);
+	
+	PORTB |= (1 << PORTB2);							// Sets nCS HIGH (inactive)
+	_delay_us(100);
+	
+}
+
+
+void SPI0_Transmitt(char* str)
+{
+	
+	int value;
+	int position = 0;
+	
+	
+	PORTB &= ~(1 << PORTB2);						// Sets nCS LOW (active)
+	_delay_us(100);
+	
+	
+	while(*str)
+	{
+		position++;
+		
+		if(position == 16)
+		{
+			
+			SPDR0 = 0xFE;
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(2000);
+			
+			SPDR0 = 0x45;
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(2000);
+			
+			SPDR0 = 0x40;
+			
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(200);
+			
+				
+		}
+		
+		else if(position == 31)
+		{
+			SPDR0 = 0xFE;									// Prefix
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(100);
+			
+			SPDR0 = 0x51;									// Clears screen
+			
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_ms(2);
+			
+			SPDR0 = 0xFE;
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(2000);
+			
+			SPDR0 = 0x45;
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(2000);
+			
+			SPDR0 = 0x00;
+			while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+			{
+			}
+			_delay_us(200);
+			
+		}
+		
+		value = get_mapped_value(*str);
+		SPDR0 = value;
+		
+		_delay_ms(100);
+			
+		while(!(SPSR0 & (1<<SPIF)))						 // Waits until transmission is complete
+		{
+		}
+		
+		_delay_us(100);
+		
+		
+		str++;
+		
+	}
+	
 	
 	PORTB |= (1 << PORTB2);							// Sets nCS HIGH (inactive)
 	
 }
+
+
+int get_mapped_value(char c)
+{
+	return char_to_int_map[(unsigned char)c];
+	
+}
+
+
+void init_char_mapping() {
+	
+	char_to_int_map['A'] = 65;
+	char_to_int_map['B'] = 66;
+	char_to_int_map['C'] = 67;
+	char_to_int_map['D'] = 68;
+	char_to_int_map['E'] = 69;
+	char_to_int_map['F'] = 70;
+	char_to_int_map['G'] = 71;
+	char_to_int_map['H'] = 72;
+	char_to_int_map['I'] = 73;
+	char_to_int_map['J'] = 74;
+	char_to_int_map['K'] = 75;
+	char_to_int_map['L'] = 76;
+	char_to_int_map['M'] = 77;
+	
+	char_to_int_map['N'] = 78;
+	char_to_int_map['O'] = 79;
+	char_to_int_map['P'] = 80;
+	char_to_int_map['Q'] = 81;
+	char_to_int_map['R'] = 82;
+	char_to_int_map['S'] = 83;
+	char_to_int_map['T'] = 84;
+	char_to_int_map['U'] = 85;
+	char_to_int_map['V'] = 86;
+	char_to_int_map['W'] = 87;
+	char_to_int_map['X'] = 88;
+	char_to_int_map['Y'] = 89;
+	char_to_int_map['Z'] = 90;
+	
+	char_to_int_map[' '] = 32;
+	char_to_int_map['%'] = 37;
+	char_to_int_map[','] = 44;
+	char_to_int_map[':'] = 58;
+	
+	
+	char_to_int_map['0'] = 48;
+	char_to_int_map['1'] = 49;
+	char_to_int_map['2'] = 50;
+	char_to_int_map['3'] = 51;
+	char_to_int_map['4'] = 52;
+	
+	char_to_int_map['5'] = 53;
+	char_to_int_map['6'] = 54;
+	char_to_int_map['7'] = 55;
+	char_to_int_map['8'] = 56;
+	char_to_int_map['9'] = 57;
+	
+
+}
+
 
 
 void initFunctionalityButton()
@@ -395,6 +625,9 @@ void initFunctionalityButton()
 
 void FunctionalityButton()
 {
+	char textFuncButtonOff[50] = "VIFTE OG HJUL ER AVSKRUDD  PGA BRYTER ";
+	
+	
 	buttonState = !(PIND & (1 << PIND7));			// Read button state. Inverted due to internal pull-up. Now 1 is ON. 
 	
 	if(buttonState != lastButtonsState)
@@ -404,10 +637,13 @@ void FunctionalityButton()
 		if(buttonState == 1)
 		{
 			PORTD |= (1 << PORTD1) | (1 << PORTD2) | (1 << PORTD6);			// Turns on wheels and fan
+			LCD_Clear_Screen();
+			SPI0_Transmitt(textFuncButtonOff);
 		}	
 		else if (buttonState == 0)
 		{
 			PORTD &= ~(((1 << PORTD1) | (1 << PORTD2)) | (1 << PORTD6));	 // Turns on wheels and fan
+			
 		}
 		
 	}
@@ -479,13 +715,14 @@ ISR(ADC_vect)
 {
 	while(1)
 	{
-	if (ADCSRA & (1 << ADIF)) 															// Checks if ADC conversion is completed		
-	{
-		batteryVoltage = ADC;
-		//ADCSRA &= ~(1 << ADSC);														// Writing it to 0 has no effect, sets to 0 automatically when ADC conversion is complete.
-	}
-	}
+		if (ADCSRA & (1 << ADIF)) 															// Checks if ADC conversion is completed
+		{
+			batteryVoltage = ADC;
+			//ADCSRA &= ~(1 << ADSC);														// Writing it to 0 has no effect, sets to 0 automatically when ADC conversion is complete.
+		}
+		else
+		{
+		}
+		
 }
-	
-	
-	
+}
